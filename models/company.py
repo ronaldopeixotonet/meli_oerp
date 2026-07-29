@@ -179,7 +179,7 @@ class res_company(models.Model):
         if (currency and currency in ML_sites):
             return ML_sites[currency]["id"]
 
-        return "MLA"
+        return "MLB"
 
     def get_meli_state( self ):
         if self.env['meli.util']._meli_is_neutralized():
