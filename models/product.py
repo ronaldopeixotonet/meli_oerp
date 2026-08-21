@@ -142,6 +142,28 @@ class product_template(models.Model):
                 _logger.info("  supplier id=%s partner=%s price=%.2f",
                              s.id, s.partner_id.name, s.price)
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        templates = super().create(vals_list)
+        templates._sync_first_gallery_image_to_main()
+        return templates
+
+    def _sync_first_gallery_image_to_main(self):
+        """Se o produto não possui imagem principal (image_1920), carrega a primeira imagem da galeria."""
+        for template in self:
+            if not template.image_1920 and template.product_template_image_ids:
+                first_img = template.product_template_image_ids.filtered(lambda img: img.image_1920)[:1]
+                if first_img:
+                    template.image_1920 = first_img.image_1920
+
+    @api.onchange('product_template_image_ids')
+    def _onchange_product_template_image_ids_sync_main(self):
+        """Ao manipular imagens da galeria no formulário, se image_1920 estiver vazia, sincroniza a primeira."""
+        if not self.image_1920 and self.product_template_image_ids:
+            first_img = self.product_template_image_ids.filtered(lambda img: img.image_1920)[:1]
+            if first_img:
+                self.image_1920 = first_img.image_1920
+
     def write(self, vals):
         """Protect variant_seller_ids from unintended destructive writes.
 
@@ -167,7 +189,10 @@ class product_template(models.Model):
                         field_name, self.ids, cmds,
                     )
                     del vals[field_name]
-        return super().write(vals)
+        res = super().write(vals)
+        if 'product_template_image_ids' in vals or 'image_1920' in vals:
+            self._sync_first_gallery_image_to_main()
+        return res
 
     def delete_image_product_now(self):
         for record in self:
@@ -1073,6 +1098,14 @@ class product_template(models.Model):
 class product_product(models.Model):
 
     _inherit = "product.product"
+
+    @api.onchange('product_variant_image_ids')
+    def _onchange_product_variant_image_ids_sync_main(self):
+        """Ao manipular imagens da galeria da variante no formulário, se image_1920 estiver vazia, sincroniza a primeira."""
+        if not self.image_1920 and self.product_variant_image_ids:
+            first_img = self.product_variant_image_ids.filtered(lambda img: img.image_1920)[:1]
+            if first_img:
+                self.image_1920 = first_img.image_1920
 
     # --- ML -> Odoo import of the MELI "Plantilla" tab attributes -----------
     # Single source of truth for the ML item-attribute -> Odoo Char field map

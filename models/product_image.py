@@ -68,6 +68,35 @@ class ProductImage(models.Model):
             pimage.meli_imagen_hash = hexhash
         return hexhash
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for record in records:
+            record._sync_to_product_main_image()
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'image_1920' in vals and vals['image_1920']:
+            for record in self:
+                record._sync_to_product_main_image()
+        return res
+
+    def _sync_to_product_main_image(self):
+        """Regra de automação: ao subir imagem para o produto, verifica se existe imagem
+        no campo principal image_1920. Caso não exista, carrega esta primeira imagem para o local."""
+        self.ensure_one()
+        if not self.image_1920:
+            return
+        if self.product_tmpl_id and not self.product_tmpl_id.image_1920:
+            self.product_tmpl_id.image_1920 = self.image_1920
+            _logger.info("Imagem principal (image_1920) preenchida automaticamente no produto template %s a partir da imagem %s",
+                         self.product_tmpl_id.id, self.id)
+        if self.product_variant_id and not self.product_variant_id.image_1920:
+            self.product_variant_id.image_1920 = self.image_1920
+            _logger.info("Imagem principal (image_1920) preenchida automaticamente na variante %s a partir da imagem %s",
+                         self.product_variant_id.id, self.id)
+
 
 
 class MeliImage(models.Model):
